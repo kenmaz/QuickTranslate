@@ -31,17 +31,24 @@ targets:
           DEST="/Applications/$PRODUCT_NAME.app"
           # 隠し名にする。/Applications 直下に .app を晒すと LaunchServices が別アプリとして拾う
           STAGING="/Applications/.$PRODUCT_NAME-install.app"
-          trap 'rm -rf "$STAGING"' EXIT INT TERM
-          # 先にコピーを済ませてから差し替える。cp が失敗しても既存アプリは無傷で、
-          # set -e によりビルドが落ちる (成功扱いで消えたままにはならない)。
+          # INT/TERM のハンドラは exit しないと中断地点の次から実行が再開され、
+          # 掃除した直後に rm -rf "$DEST" まで進んでアプリが消える
+          trap 'rm -rf "$STAGING"' EXIT
+          trap 'rm -rf "$STAGING"; exit 1' INT TERM
+          # 先にコピーを済ませてから差し替える。cp が失敗しても既存アプリは無傷。
           # rm -rf は cp -R のマージを避けるためと、壊れたシンボリックリンクが残っている環境で
           # cp が `Not a directory` になるのを避けるために必要。
           # なお rm と mv の間で中断されるとアプリは消える。その場合はビルドし直せば戻る。
           # 同じプロジェクトの並行ビルドは想定しない (最後の 1 本が勝つ)。
-          rm -rf "$STAGING"
-          cp -R "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app" "$STAGING"
-          rm -rf "$DEST"
-          mv "$STAGING" "$DEST"
+          if ! { rm -rf "$STAGING" &&
+                 cp -R "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app" "$STAGING" &&
+                 rm -rf "$DEST" &&
+                 mv "$STAGING" "$DEST"; }; then
+            # /Applications に書けない環境 (標準ユーザー、MDM 管理端末、CI など) でも
+            # ビルド自体は通す。ただし成功したように見せない。
+            echo "warning: $DEST へのインストールに失敗しました (ビルドは成功)" >&2
+            exit 0
+          fi
           echo "✅ $DEST にインストールしました"
         name: Install to /Applications
         basedOnDependencyAnalysis: false
