@@ -11,11 +11,9 @@ build:
 	           -configuration Release \
 	           CONFIGURATION_BUILD_DIR=$(PWD)/$(BUILD_DIR)
 
+# /Applications/ への設置は project.yml の postBuildScript が build 中に行う。
+# ここで rm -rf + cp をやり直すと、中断時に中途半端なアプリが残る。
 install: build
-	@echo "📦 /Applications/$(APP_NAME).app にインストール中..."
-	@rm -rf /Applications/$(APP_NAME).app
-	@cp -R $(BUILD_DIR)/$(APP_NAME).app /Applications/
-	@echo "✅ インストール完了！"
 	@echo "🔄 起動中..."
 	@open /Applications/$(APP_NAME).app
 
